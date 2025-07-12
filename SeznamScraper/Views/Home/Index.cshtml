@@ -1,0 +1,85 @@
+﻿@{
+    ViewData["Title"] = "Seznam Scraper";
+}
+
+<!-- Hlavička sekce -->
+<h3>Použití</h3>
+<hr />
+
+<!-- Krok 1 – Návod na instalaci rozšíření -->
+<h4>1. Nainstalujte rozšíření prohlížeče</h4>
+<p>
+    ze složky <code>SeznamScraper.ChromeExtension</code> pro:
+</p>
+<ul>
+    <li>
+        <strong>Chrome / Edge / Opera:</strong> <code>chrome://extensions/</code> &rarr; zapněte <em>Režim pro vývojáře</em> &rarr; <em>Načíst rozbalené</em> &rarr;
+        vyberte složku (i přes nápis "Hledání neodpovídají žádné položky.").
+    </li>
+</ul>
+<p>
+    ze složky <code>SeznamScraper.FireFoxExtension</code> pro:
+</p>
+<ul>
+    <li><strong>Firefox:</strong> <code>about:debugging#/runtime/this-firefox</code> &rarr; <em>Načíst dočasný doplněk...</em> &rarr; vyberte soubor <code>manifest.json</code>.</li>
+</ul>
+<p>
+    Poté přejděte na libovolný profil Seznamu (<code>https://www.seznam.cz/profil/...</code>) a klikněte na ikonu rozšíření.
+</p>
+<p>
+    Komentáře budou automaticky staženy a uloženy do databáze.
+</p>
+
+<hr />
+
+<!-- Krok 2 – Ruční zadání URL -->
+<h4>2. Ruční vložení HTML</h4>
+<p>
+    Alternativně můžete vložit HTML kód profilu ručně:
+</p>
+
+<!-- Formulář pro zadání URL profilu -->
+<form method="post" action="/api/home/from-input" onsubmit="return sendUrl(event)">
+    <!-- Vstupní pole pro URL s bootstrapovou třídou -->
+    <input type="text" class="form-control mb-2" id="urlInput" name="url" style="width: 100%;" placeholder="Vložte URL profilu (např. https://www.seznam.cz/profil/...)" />
+
+    <!-- Tlačítko pro odeslání -->
+    <button type="submit" class="btn btn-primary">Odeslat</button>
+</form>
+
+<!-- Zde se zobrazí zpráva o úspěchu/chybě -->
+<p id="resultMessage" style="margin-top: 10px;"></p>
+
+<!-- Skript pro AJAX volání na API -->
+@section Scripts {
+    <script>
+        // Zpracování odeslání formuláře bez reloadu stránky
+        function sendUrl(e) {
+            e.preventDefault();
+
+            const url = document.getElementById("urlInput").value;
+            const result = document.getElementById("resultMessage");
+
+            fetch("/api/home/from-input", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ url })
+            })
+            // Úspěšné volání API
+            .then(res => res.ok ? res.json() : res.text().then(text => { throw new Error(text); }))
+            .then(data => {
+                result.style.color = "green";
+                result.textContent = `Úspěšně uloženo ${data.count} komentářů.`;
+            })
+            // Chyba během volání API
+            .catch(err => {
+                result.style.color = "red";
+                result.textContent = `Chyba: ${err.message}`;
+            });
+
+            return false;
+        }
+    </script>
+}

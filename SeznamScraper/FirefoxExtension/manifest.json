@@ -1,0 +1,26 @@
+{
+  "manifest_version": 2,
+  "name": "Seznam Profile Scraper",
+  "version": "1.0",
+  "permissions": [
+    "notifications",
+    "activeTab",
+    "http://localhost:5109/*"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.seznam.cz/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_action": {
+    "default_title": "Scrape Seznam Profile"
+  },
+  "icons": {
+    "48": "icon.png"
+  }
+}

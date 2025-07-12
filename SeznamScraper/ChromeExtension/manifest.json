@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Seznam Profile Scraper",
+  "version": "1.0",
+  "permissions": [
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://localhost:5109/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Scrape Seznam Profile"
+  },
+  "icons": {
+    "48": "icon.png"
+  }
+}
