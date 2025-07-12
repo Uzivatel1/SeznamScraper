@@ -29,14 +29,13 @@ public class HomeController : Controller
     {
         var html = payload.Html;
 
-        // Pokusíme se najít jméno uživatele v <h1> tagu (napø. <h1 class="font-bold text-xl">Jméno Pøíjmení</h1>)
+        // Najdeme celé jméno uživatele v tagu <h1 class="font-bold text-xl">
         var nameMatch = Regex.Match(
             html,
             @"<h1[^>]*class=""[^""]*\bfont-bold\b[^""]*\btext-xl\b[^""]*""[^>]*>(.*?)</h1>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline
         );
 
-        // Pokud nenalezeno, uložíme snippet HTML pro ladìní a vracíme chybu
         if (!nameMatch.Success)
         {
             var snippet = html.Substring(0, Math.Min(1000, html.Length));
@@ -44,17 +43,16 @@ public class HomeController : Controller
             return BadRequest("User name not found in the provided HTML.");
         }
 
-        // Rozdìlení jména a pøíjmení
+        // Rozdìlení jména
         var fullName = nameMatch.Groups[1].Value.Trim();
         var nameParts = fullName.Split(' ');
         if (nameParts.Length < 2)
             return BadRequest("Invalid user name format.");
 
-        // Vyhledání uživatele v databázi
+        // Najdeme uživatele v DB, pøípadnì vytvoøíme
         var user = await _context.Users
                                  .FirstOrDefaultAsync(u => u.FirstName == nameParts[0] && u.LastName == nameParts[1]);
 
-        // Pokud neexistuje, pøidáme nového
         if (user == null)
         {
             user = new User { FirstName = nameParts[0], LastName = nameParts[1] };
@@ -62,51 +60,63 @@ public class HomeController : Controller
             await _context.SaveChangesAsync();
         }
 
-        // Najdeme všechny bloky komentáøù
+        // Najdeme bloky komentáøù
         var commentBlocks = Regex.Matches(
-            payload.Html,
+            html,
             @"<div[^>]*class=""[^""]*szn-diskuze-comment-content[^""]*"".*?>(.*?)</div>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline
         );
 
         var comments = new List<string>();
 
-        // Pro každý blok komentáøù spojíme všechny <p> do jednoho celku
         foreach (Match block in commentBlocks)
         {
             string blockHtml = block.Groups[1].Value;
 
+            // Najdeme jednotlivé odstavce komentáøe
             var paragraphMatches = Regex.Matches(
                 blockHtml,
                 @"<p[^>]*class=""atm-paragraph""[^>]*>(.*?)</p>",
                 RegexOptions.IgnoreCase | RegexOptions.Singleline
             );
 
-            // Spojení všech <p> do jednoho komentáøe
-            var commentText = string.Join(" ", paragraphMatches
-                .Select(p => WebUtility.HtmlDecode(p.Groups[1].Value.Trim()))
+            // Spojíme jednotlivé odstavce do jednoho komentáøe
+            var rawText = string.Join(" ", paragraphMatches
+                .Select(p => p.Groups[1].Value.Trim())
                 .Where(t => !string.IsNullOrWhiteSpace(t)));
 
-            if (!string.IsNullOrWhiteSpace(commentText))
-                comments.Add(commentText);
+            // Odstraníme HTML tagy
+            var textWithoutTags = Regex.Replace(rawText, "<.*?>", "");
+
+            // Dekódujeme HTML entity a normalizujeme mezery
+            var cleanedText = Regex.Replace(WebUtility.HtmlDecode(textWithoutTags).Trim(), @"\s+", " ");
+
+            if (!string.IsNullOrWhiteSpace(cleanedText))
+                comments.Add(cleanedText);
         }
 
-        // Pokud nejsou žádné komentáøe, vracíme chybu
         if (comments.Count == 0)
             return BadRequest("No comments found.");
 
-        // Naèteme stávající komentáøe uživatele z databáze
+        // Naèteme existující komentáøe a normalizujeme je
         var existingComments = await _context.Comments
             .Where(c => c.UserId == user.Id)
             .Select(c => c.Text)
             .ToListAsync();
 
-        // Odfiltrujeme duplicitní komentáøe (již uložené nebo v rámci payloadu)
+        string Normalize(string text) =>
+            Regex.Replace(WebUtility.HtmlDecode(text).Trim(), @"\s+", " ");
+
+        var normalizedExisting = existingComments
+            .Select(Normalize)
+            .ToHashSet();
+
         var newComments = comments
-            .Where(c => !existingComments.Contains(c))
+            .Select(Normalize)
+            .Where(c => !normalizedExisting.Contains(c))
             .Distinct();
 
-        // Uložíme nové komentáøe do databáze
+        // Uložíme nové komentáøe
         foreach (var comment in newComments)
         {
             _context.Comments.Add(new Comment
@@ -118,7 +128,7 @@ public class HomeController : Controller
 
         await _context.SaveChangesAsync();
 
-        return Ok(new { count = comments.Count }); // Vrátíme poèet všech komentáøù (vèetnì duplicit)
+        return Ok(new { count = comments.Count });
     }
 
     // Tøída pro vstup URL adresy (ruèní vložení odkazu z formuláøe)
